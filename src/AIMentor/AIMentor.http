@@ -1,7 +1,12 @@
 @AIMentor_HostAddress = http://localhost:5285
 
-GET {{AIMentor_HostAddress}}/todos/
+POST {{AIMentor_HostAddress}}/sessions/0/messages
 Accept: application/json
+Content-Type: application/json
+
+{
+  "content": "Hello, how are you?"
+}
 
 ###
 
