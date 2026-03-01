@@ -1,6 +1,6 @@
 ﻿namespace AIMentor.Features;
 
-public class OpenApiOptions
+public class OpenAiOptions
 {
     public const string SectionPath = "Features:OpenApi";
 

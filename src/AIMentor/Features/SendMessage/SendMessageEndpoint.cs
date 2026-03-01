@@ -1,11 +1,9 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 
 namespace AIMentor.Features.SendMessage;
 
 public class SendMessageEndpoint : IEndpoint
 {
-    [Experimental("OPENAI001")]
     public void MapEndpoint(IEndpointRouteBuilder builder)
     {
         builder.MapPost("sessions/{sessionId:int}/messages", Handler)
@@ -16,7 +14,6 @@ public class SendMessageEndpoint : IEndpoint
             .WithSummary("Creates a new message in a session");
     }
 
-    [Experimental("OPENAI001")]
     private static async Task<IResult> Handler(
         [FromRoute] int sessionId,
         [FromBody] CreateMessageDto request,

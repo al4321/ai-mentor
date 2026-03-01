@@ -10,6 +10,6 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <NoWarn>$(NoWarn);NU1507;NU1900</NoWarn>
+    <NoWarn>$(NoWarn);NU1507;NU1900;OPENAI001</NoWarn>
   </PropertyGroup>
 </Project>

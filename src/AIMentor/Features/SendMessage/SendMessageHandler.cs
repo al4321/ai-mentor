@@ -1,18 +1,14 @@
-﻿using System.ClientModel;
-using System.Diagnostics.CodeAnalysis;
-using AIMentor.Database;
+﻿using AIMentor.Database;
 using AIMentor.Database.Models.Message;
 using AIMentor.Database.Models.Session;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using OpenAI;
 using OpenAI.Responses;
 
 namespace AIMentor.Features.SendMessage;
 
-public class SendMessageHandler(AiMentorDbContext context, IOptions<OpenApiOptions> options)
+public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbContext context, IOptions<OpenAiOptions> options)
 {
-    [Experimental("OPENAI001")]
     public async Task<MessageResponseDto?> HandleAsync(int sessionId, string content, CancellationToken cancellationToken)
     {
         var session = await GetOrCreateSession(sessionId, cancellationToken);
@@ -23,65 +19,17 @@ public class SendMessageHandler(AiMentorDbContext context, IOptions<OpenApiOptio
 
         await CreateMessage(content, session, MessageRoles.User, cancellationToken);
         var sessionMessages = await GetSessionMessages(session.Id, cancellationToken);
-        var response = await RequestOpenAiResponse(sessionMessages, cancellationToken);
-        await CreateMessage(response.GetOutputText(), session, MessageRoles.Assistant, cancellationToken);
-        Console.WriteLine($"[ASSISTANT]: {response.GetOutputText()}");
+        var createResponseOptions = PrepareOpenAiResponseOptions(sessionMessages);
+        var response = await responsesClient.CreateResponseAsync(createResponseOptions, cancellationToken);
+        var responseText = response.Value.GetOutputText();
+        await CreateMessage(responseText, session, MessageRoles.Assistant, cancellationToken);
+        Console.WriteLine($"[ASSISTANT]: {responseText}");
 
         return new MessageResponseDto
         {
             SessionId = session.Id,
-            Content = response.GetOutputText()
+            Content = responseText
         };
-    }
-
-    private async Task CreateMessage(string content, SessionModel session, string role, CancellationToken cancellationToken)
-    {
-        var userMessage = new MessageModel
-        {
-            Content = content,
-            Role = role,
-            SessionId = session.Id
-        };
-        context.Messages.Add(userMessage);
-        await context.SaveChangesAsync(cancellationToken);
-    }
-
-    [Experimental("OPENAI001")]
-    private async Task<IReadOnlyCollection<ResponseItem>> GetSessionMessages(int sessionId, CancellationToken cancellationToken)
-    {
-        return await context.Messages
-            .AsNoTracking()
-            .Where(x => x.SessionId == sessionId)
-            .OrderBy(x => x.CreatedAt)
-            .Select(x => x.Role == MessageRoles.User
-                ? ResponseItem.CreateUserMessageItem(x.Content)
-                : ResponseItem.CreateAssistantMessageItem(x.Content, null))
-            .ToListAsync(cancellationToken);
-    }
-
-    [Experimental("OPENAI001")]
-    private async Task<ResponseResult> RequestOpenAiResponse(
-        IReadOnlyCollection<ResponseItem> content,
-        CancellationToken cancellationToken)
-    {
-        var client = new ResponsesClient(
-            new ApiKeyCredential(options.Value.OpenAiKey),
-            new OpenAIClientOptions
-            {
-                Endpoint = new Uri(options.Value.BaseUrl)
-            });
-        var createResponseOptions = new CreateResponseOptions
-        {
-            Model = options.Value.OpenAiModel
-        };
-        foreach (var item in content)
-        {
-            createResponseOptions.InputItems.Add(item);
-        }
-
-        var response = await client.CreateResponseAsync(createResponseOptions, cancellationToken);
-
-        return response.Value;
     }
 
     private async Task<SessionModel?> GetOrCreateSession(int sessionId, CancellationToken cancellationToken)
@@ -104,5 +52,43 @@ public class SendMessageHandler(AiMentorDbContext context, IOptions<OpenApiOptio
         }
 
         return session;
+    }
+
+    private async Task CreateMessage(string content, SessionModel session, string role, CancellationToken cancellationToken)
+    {
+        var userMessage = new MessageModel
+        {
+            Content = content,
+            Role = role,
+            SessionId = session.Id
+        };
+        context.Messages.Add(userMessage);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyCollection<ResponseItem>> GetSessionMessages(int sessionId, CancellationToken cancellationToken)
+    {
+        return await context.Messages
+            .AsNoTracking()
+            .Where(x => x.SessionId == sessionId)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => x.Role == MessageRoles.User
+                ? ResponseItem.CreateUserMessageItem(x.Content)
+                : ResponseItem.CreateAssistantMessageItem(x.Content, null))
+            .ToListAsync(cancellationToken);
+    }
+
+    private CreateResponseOptions PrepareOpenAiResponseOptions(IReadOnlyCollection<ResponseItem> content)
+    {
+        var createResponseOptions = new CreateResponseOptions
+        {
+            Model = options.Value.OpenAiModel
+        };
+        foreach (var item in content)
+        {
+            createResponseOptions.InputItems.Add(item);
+        }
+
+        return createResponseOptions;
     }
 }
