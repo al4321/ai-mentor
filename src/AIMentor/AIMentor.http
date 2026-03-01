@@ -1,11 +1,11 @@
 @AIMentor_HostAddress = http://localhost:5285
 
-POST {{AIMentor_HostAddress}}/sessions/0/messages
+POST {{AIMentor_HostAddress}}/sessions/7/messages
 Accept: application/json
 Content-Type: application/json
 
 {
-  "content": "Hello, how are you?"
+  "content": "What is his famous picture?"
 }
 
 ###

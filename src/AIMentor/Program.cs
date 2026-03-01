@@ -29,4 +29,11 @@ var app = builder.Build();
 foreach (var ep in app.Services.GetServices<IEndpoint>())
     ep.MapEndpoint(app);
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
+    await dbContext.Database.EnsureCreatedAsync();
+}
+
+
 app.Run();

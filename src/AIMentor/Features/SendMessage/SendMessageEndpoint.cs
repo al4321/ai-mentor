@@ -25,7 +25,7 @@ public class SendMessageEndpoint : IEndpoint
     {
         try
         {
-            var response = await handler.Handle(sessionId, request.Content, cancellationToken);
+            var response = await handler.HandleAsync(sessionId, request.Content, cancellationToken);
             return response == null ? Results.NotFound() : Results.Ok(response);
         }
         catch (Exception e)
