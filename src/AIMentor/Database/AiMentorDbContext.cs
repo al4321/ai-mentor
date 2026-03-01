@@ -7,7 +7,6 @@ namespace AIMentor.Database;
 
 public class AiMentorDbContext(DbContextOptions<AiMentorDbContext> options) : DbContext(options)
 {
-    private const string Schema = "mentor";
     public const string ConnectionName = "AiMentorDb";
 
     public DbSet<SessionModel> Sessions { get; init; }
@@ -15,8 +14,6 @@ public class AiMentorDbContext(DbContextOptions<AiMentorDbContext> options) : Db
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder
-            .HasDefaultSchema(Schema)
-            .ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
 }

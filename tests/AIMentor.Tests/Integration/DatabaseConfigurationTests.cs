@@ -1,6 +1,7 @@
 using AIMentor.Database;
 using AIMentor.Database.Models.Message;
 using AIMentor.Database.Models.Session;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,43 +25,57 @@ public class DatabaseConfigurationTests
     public async Task SessionModel_IdAndTimestamps_GeneratedOnInsert()
     {
         // Arrange: Create an in-memory SQLite database for testing
-        var builder = new HostBuilder()
-            .ConfigureServices(services =>
-            {
-                // Use in-memory SQLite for this test
-                services.AddDbContext<AiMentorDbContext>(options =>
-                    options.UseSqlite("Data Source=:memory:"));
-            });
+        // Important: Keep connection open to keep in-memory database alive
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
 
-        var host = builder.Build();
-        var scope = host.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
+        try
+        {
+            var builder = new HostBuilder()
+                .ConfigureServices(services =>
+                {
+                    services.AddDbContext<AiMentorDbContext>(options =>
+                        options.UseSqlite(connection));
+                });
 
-        // Create the database schema
-        await dbContext.Database.EnsureCreatedAsync();
+            var host = builder.Build();
+            var scope = host.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
 
-        // Act: Insert a SessionModel with only the Name property set
-        var session = new SessionModel { Name = "Test Session" };
-        dbContext.Sessions.Add(session);
-        await dbContext.SaveChangesAsync();
+            // Create the database schema
+            await dbContext.Database.EnsureCreatedAsync();
 
-        // Assert: Verify Id was generated and timestamps are populated
-        Assert.True(session.Id > 0);
-        Assert.NotEqual(default, session.CreatedAt);
-        Assert.NotEqual(default, session.UpdatedAt);
-        Assert.Equal(DateTimeKind.Utc, session.CreatedAt.UtcDateTime.Kind);
-        Assert.Equal(DateTimeKind.Utc, session.UpdatedAt.UtcDateTime.Kind);
+            // Act: Insert a SessionModel with only the Name property set
+            var session = new SessionModel { Name = "Test Session" };
+            dbContext.Sessions.Add(session);
+            await dbContext.SaveChangesAsync();
 
-        // Act: Retrieve the session from the database
-        var loadedSession = await dbContext.Sessions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == session.Id);
+            // Assert: Verify Id was generated and timestamps are populated
+            Assert.True(session.Id > 0);
+            Assert.NotEqual(default, session.CreatedAt);
+            Assert.NotEqual(default, session.UpdatedAt);
+            Assert.Equal(DateTimeKind.Utc, session.CreatedAt.UtcDateTime.Kind);
+            Assert.Equal(DateTimeKind.Utc, session.UpdatedAt.UtcDateTime.Kind);
 
-        // Assert: Verify timestamps persisted correctly and converted back to DateTimeOffset
-        Assert.NotNull(loadedSession);
-        Assert.Equal(session.Id, loadedSession.Id);
-        Assert.Equal(session.CreatedAt, loadedSession.CreatedAt);
-        Assert.Equal(session.UpdatedAt, loadedSession.UpdatedAt);
+            // Act: Retrieve the session from the database
+            var loadedSession = await dbContext.Sessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == session.Id);
+
+            // Assert: Verify timestamps persisted correctly and converted back to DateTimeOffset
+            Assert.NotNull(loadedSession);
+            Assert.Equal(session.Id, loadedSession.Id);
+            Assert.Equal(session.CreatedAt, loadedSession.CreatedAt);
+            Assert.Equal(session.UpdatedAt, loadedSession.UpdatedAt);
+
+            await host.StopAsync();
+            host.Dispose();
+        }
+        finally
+        {
+            await connection.CloseAsync();
+            await connection.DisposeAsync();
+        }
     }
 
     /// <summary>
@@ -71,50 +86,65 @@ public class DatabaseConfigurationTests
     public async Task MessageModel_IdAndTimestamp_GeneratedOnInsert()
     {
         // Arrange: Create an in-memory SQLite database for testing
-        var builder = new HostBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddDbContext<AiMentorDbContext>(options =>
-                    options.UseSqlite("Data Source=:memory:"));
-            });
+        // Important: Keep connection open to keep in-memory database alive
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
 
-        var host = builder.Build();
-        var scope = host.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
-
-        // Create the database schema
-        await dbContext.Database.EnsureCreatedAsync();
-
-        // Create and insert a session first
-        var session = new SessionModel { Name = "Test Session for Messages" };
-        dbContext.Sessions.Add(session);
-        await dbContext.SaveChangesAsync();
-
-        // Act: Insert a MessageModel with only required properties set
-        var message = new MessageModel
+        try
         {
-            Content = "Test message content",
-            Role = "assistant",
-            CreatedAt = default,  // Will be overridden by database default
-            SessionId = session.Id
-        };
-        dbContext.Messages.Add(message);
-        await dbContext.SaveChangesAsync();
+            var builder = new HostBuilder()
+                .ConfigureServices(services =>
+                {
+                    services.AddDbContext<AiMentorDbContext>(options =>
+                        options.UseSqlite(connection));
+                });
 
-        // Assert: Verify Id was generated and CreatedAt is populated
-        Assert.True(message.Id > 0);
-        Assert.NotEqual(default, message.CreatedAt);
-        Assert.Equal(DateTimeKind.Utc, message.CreatedAt.UtcDateTime.Kind);
+            var host = builder.Build();
+            var scope = host.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
 
-        // Act: Retrieve the message from the database
-        var loadedMessage = await dbContext.Messages
-            .AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == message.Id);
+            // Create the database schema
+            await dbContext.Database.EnsureCreatedAsync();
 
-        // Assert: Verify timestamp persisted correctly and converted back to DateTimeOffset
-        Assert.NotNull(loadedMessage);
-        Assert.Equal(message.Id, loadedMessage.Id);
-        Assert.Equal(message.CreatedAt, loadedMessage.CreatedAt);
+            // Create and insert a session first
+            var session = new SessionModel { Name = "Test Session for Messages" };
+            dbContext.Sessions.Add(session);
+            await dbContext.SaveChangesAsync();
+
+            // Act: Insert a MessageModel with only required properties set
+            var message = new MessageModel
+            {
+                Content = "Test message content",
+                Role = "assistant",
+                CreatedAt = default, // Will be overridden by database default
+                SessionId = session.Id
+            };
+            dbContext.Messages.Add(message);
+            await dbContext.SaveChangesAsync();
+
+            // Assert: Verify Id was generated and CreatedAt is populated
+            Assert.True(message.Id > 0);
+            Assert.NotEqual(default, message.CreatedAt);
+            Assert.Equal(DateTimeKind.Utc, message.CreatedAt.UtcDateTime.Kind);
+
+            // Act: Retrieve the message from the database
+            var loadedMessage = await dbContext.Messages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == message.Id);
+
+            // Assert: Verify timestamp persisted correctly and converted back to DateTimeOffset
+            Assert.NotNull(loadedMessage);
+            Assert.Equal(message.Id, loadedMessage.Id);
+            Assert.Equal(message.CreatedAt, loadedMessage.CreatedAt);
+
+            await host.StopAsync();
+            host.Dispose();
+        }
+        finally
+        {
+            await connection.CloseAsync();
+            await connection.DisposeAsync();
+        }
     }
 
     /// <summary>
@@ -124,34 +154,49 @@ public class DatabaseConfigurationTests
     [Fact]
     public async Task Timestamps_HaveFractionalSecondPrecision()
     {
-        // Arrange
-        var builder = new HostBuilder()
-            .ConfigureServices(services =>
-            {
-                services.AddDbContext<AiMentorDbContext>(options =>
-                    options.UseSqlite("Data Source=:memory:"));
-            });
+        // Arrange: Create an in-memory SQLite database for testing
+        // Important: Keep connection open to keep in-memory database alive
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
 
-        var host = builder.Build();
-        var scope = host.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
+        try
+        {
+            var builder = new HostBuilder()
+                .ConfigureServices(services =>
+                {
+                    services.AddDbContext<AiMentorDbContext>(options =>
+                        options.UseSqlite(connection));
+                });
 
-        await dbContext.Database.EnsureCreatedAsync();
+            var host = builder.Build();
+            var scope = host.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AiMentorDbContext>();
 
-        // Act: Insert two sessions with minimal delay
-        var session1 = new SessionModel { Name = "Session 1" };
-        dbContext.Sessions.Add(session1);
-        await dbContext.SaveChangesAsync();
+            await dbContext.Database.EnsureCreatedAsync();
 
-        // Small delay to ensure time difference
-        await Task.Delay(10);
+            // Act: Insert two sessions with minimal delay
+            var session1 = new SessionModel { Name = "Session 1" };
+            dbContext.Sessions.Add(session1);
+            await dbContext.SaveChangesAsync();
 
-        var session2 = new SessionModel { Name = "Session 2" };
-        dbContext.Sessions.Add(session2);
-        await dbContext.SaveChangesAsync();
+            // Small delay to ensure time difference
+            await Task.Delay(10);
 
-        // Assert: Verify timestamps are different (fractional seconds allow this)
-        Assert.NotEqual(session1.CreatedAt, session2.CreatedAt);
+            var session2 = new SessionModel { Name = "Session 2" };
+            dbContext.Sessions.Add(session2);
+            await dbContext.SaveChangesAsync();
+
+            // Assert: Verify timestamps are different (fractional seconds allow this)
+            Assert.NotEqual(session1.CreatedAt, session2.CreatedAt);
+
+            await host.StopAsync();
+            host.Dispose();
+        }
+        finally
+        {
+            await connection.CloseAsync();
+            await connection.DisposeAsync();
+        }
     }
 }
 
