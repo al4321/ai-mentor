@@ -1,0 +1,11 @@
+@AIMentor_HostAddress = http://localhost:5285
+
+GET {{AIMentor_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{AIMentor_HostAddress}}/todos/1
+Accept: application/json
+
+###
