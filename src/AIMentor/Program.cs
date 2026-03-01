@@ -1,6 +1,9 @@
 using System.Text.Json.Serialization;
+using AIMentor.Database;
 
 var builder = WebApplication.CreateSlimBuilder(args);
+
+builder.AddAiMentorDatabase();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
