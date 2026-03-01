@@ -17,12 +17,12 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
             return null;
         }
 
-        await CreateMessage(content, session, MessageRoles.User, cancellationToken);
+        await AppendMessageToSession(content, session, MessageRoles.User, cancellationToken);
         var sessionMessages = await GetSessionMessages(session.Id, cancellationToken);
         var createResponseOptions = PrepareOpenAiResponseOptions(sessionMessages);
         var response = await responsesClient.CreateResponseAsync(createResponseOptions, cancellationToken);
         var responseText = response.Value.GetOutputText();
-        await CreateMessage(responseText, session, MessageRoles.Assistant, cancellationToken);
+        await AppendMessageToSession(responseText, session, MessageRoles.Assistant, cancellationToken);
         Console.WriteLine($"[ASSISTANT]: {responseText}");
 
         return new MessageResponseDto
@@ -54,7 +54,7 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
         return session;
     }
 
-    private async Task CreateMessage(string content, SessionModel session, string role, CancellationToken cancellationToken)
+    private async Task AppendMessageToSession(string content, SessionModel session, string role, CancellationToken cancellationToken)
     {
         var userMessage = new MessageModel
         {
