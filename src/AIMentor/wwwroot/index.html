@@ -62,7 +62,7 @@
         }
 
         .sessions-panel .panel-title {
-            padding: 14px 16px;
+            padding: 10px 16px;
             font-size: 0.8rem;
             font-weight: 600;
             text-transform: uppercase;
@@ -70,6 +70,32 @@
             color: #888;
             border-bottom: 1px solid #0f3460;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .new-session-btn {
+            background: none;
+            border: 1px solid #0f3460;
+            color: #c8d6e5;
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 2px 7px;
+            border-radius: 6px;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+
+        .new-session-btn:hover:not(:disabled) {
+            color: #fff;
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.15);
+        }
+
+        .new-session-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         #sessionList {
@@ -145,7 +171,7 @@
             margin-top: 2px;
         }
 
-        /* Chat frame */
+        /* Session frame */
         .frame {
             width: 50%;
             height: 90%;
@@ -268,13 +294,16 @@
 
     <div class="layout">
         <div class="sessions-panel">
-            <div class="panel-title">Sessions</div>
+            <div class="panel-title">
+                <span>Chats</span>
+                <button class="new-session-btn" id="newSessionBtn" title="New chat">＋</button>
+            </div>
             <div id="sessionList"></div>
         </div>
 
         <div class="frame">
             <div id="output"></div>
-            <div class="status" id="status">Initializing session...</div>
+            <div class="status" id="status">Initializing chat...</div>
             <div class="input-area">
                 <input type="text" id="messageInput" placeholder="Type your question..." disabled />
                 <button id="sendBtn" disabled>Send</button>
@@ -291,6 +320,7 @@
         const sendBtn = document.getElementById('sendBtn');
         const status = document.getElementById('status');
         const sessionList = document.getElementById('sessionList');
+        const newSessionBtn = document.getElementById('newSessionBtn');
 
         function appendMessage(role, text) {
             const div = document.createElement('div');
@@ -360,7 +390,7 @@
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'session-delete-btn';
                 deleteBtn.textContent = '✕';
-                deleteBtn.title = 'Delete session';
+                deleteBtn.title = 'Delete chat';
                 deleteBtn.addEventListener('click', e => {
                     e.stopPropagation();
                     deleteSession(s.id);
@@ -381,13 +411,13 @@
                 if (id === sessionId) {
                     sessionId = 0;
                     output.innerHTML = '';
-                    status.textContent = 'Session deleted. Start a new one by refreshing the page.';
+                    status.textContent = 'Chat deleted. Start a new one with the + button.';
                     messageInput.disabled = true;
                     sendBtn.disabled = true;
                 }
                 await loadSessions();
             } catch (e) {
-                status.textContent = `Failed to delete session: ${e.message}`;
+                status.textContent = `Failed to delete chat: ${e.message}`;
             }
         }
 
@@ -401,6 +431,30 @@
         function setSessionsLoading(value) {
             isLoading = value;
             sessionList.classList.toggle('loading', value);
+            newSessionBtn.disabled = value;
+        }
+
+        async function startNewSession() {
+            if (isLoading) return;
+            output.innerHTML = '';
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            setSessionsLoading(true);
+            status.textContent = 'Starting new chat...';
+            try {
+                const data = await postMessage(0, null);
+                sessionId = data.sessionId;
+                appendMessage('assistant', data.content);
+                status.textContent = `Chat started (id: ${sessionId})`;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+                await loadSessions();
+            } catch (e) {
+                status.textContent = `Failed to start chat: ${e.message}`;
+            } finally {
+                setSessionsLoading(false);
+            }
         }
 
         async function selectSession(id) {
@@ -410,7 +464,7 @@
             messageInput.disabled = true;
             sendBtn.disabled = true;
             setSessionsLoading(true);
-            status.textContent = 'Loading session...';
+            status.textContent = 'Loading chat...';
             try {
                 const response = await fetch(`/sessions/${id}/messages`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -418,7 +472,7 @@
                 for (const m of messages) {
                     appendMessage(m.role === 'user' ? 'user' : 'assistant', m.content);
                 }
-                status.textContent = `Session id: ${sessionId}`;
+                status.textContent = `Chat id: ${sessionId}`;
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
                 messageInput.focus();
@@ -436,13 +490,13 @@
                 const data = await postMessage(0, null);
                 sessionId = data.sessionId;
                 appendMessage('assistant', data.content);
-                status.textContent = `Session started (id: ${sessionId})`;
+                status.textContent = `Chat started (id: ${sessionId})`;
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
                 messageInput.focus();
                 await loadSessions();
             } catch (e) {
-                status.textContent = `Failed to start session: ${e.message}`;
+                status.textContent = `Failed to start chat: ${e.message}`;
             } finally {
                 setSessionsLoading(false);
             }
@@ -461,7 +515,7 @@
             try {
                 const data = await postMessage(sessionId, text);
                 appendMessage('assistant', data.content);
-                status.textContent = `Session id: ${sessionId}`;
+                status.textContent = `Chat id: ${sessionId}`;
             } catch (e) {
                 status.textContent = `Error: ${e.message}`;
             } finally {
@@ -471,6 +525,7 @@
             }
         }
 
+        newSessionBtn.addEventListener('click', startNewSession);
         sendBtn.addEventListener('click', handleSend);
         messageInput.addEventListener('keydown', e => {
             if (e.key === 'Enter') handleSend();
