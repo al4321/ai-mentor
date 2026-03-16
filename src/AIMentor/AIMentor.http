@@ -1,11 +1,11 @@
 @AIMentor_HostAddress = http://localhost:5285
 
-POST {{AIMentor_HostAddress}}/sessions/7/messages
+POST {{AIMentor_HostAddress}}/sessions/0/messages
 Accept: application/json
 Content-Type: application/json
 
 {
-  "content": "Tell last names of all persons we've mentioned in the dialogue"
+  "content": "Компьютер (файлы, интернет), Принтер (печать), Телефон (звонки, сообщения)"
 }
 
 ###

@@ -16,13 +16,13 @@ public class SendMessageEndpoint : IEndpoint
 
     private static async Task<IResult> Handler(
         [FromRoute] int sessionId,
-        [FromBody] CreateMessageDto request,
+        [FromBody] CreateMessageDto? request,
         [FromServices] SendMessageHandler handler,
         CancellationToken cancellationToken)
     {
         try
         {
-            var response = await handler.HandleAsync(sessionId, request.Content, cancellationToken);
+            var response = await handler.HandleAsync(sessionId, request?.Content, cancellationToken);
             return response == null ? Results.NotFound() : Results.Ok(response);
         }
         catch (Exception e)

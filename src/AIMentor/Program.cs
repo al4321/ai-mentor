@@ -8,11 +8,13 @@ var builder = WebApplication.CreateSlimBuilder(args);
 builder.AddAiMentorDatabase();
 builder.AddFeatures();
 
+builder.Services.AddMemoryCache();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
-builder.Services.Scan(scan => scan
+builder.Services
+    .Scan(scan => scan
     .FromAssemblies(Assembly.GetExecutingAssembly())
     .AddClasses(c => c.AssignableTo<IEndpoint>())
     .AsImplementedInterfaces()

@@ -2,14 +2,18 @@
 using AIMentor.Database.Models.Message;
 using AIMentor.Database.Models.Session;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenAI.Responses;
+using System.Reflection;
 
 namespace AIMentor.Features.SendMessage;
 
-public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbContext context, IOptions<OpenAiOptions> options)
+public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbContext context, IOptions<OpenAiOptions> options, IMemoryCache memoryCache)
 {
-    public async Task<MessageResponseDto?> HandleAsync(int sessionId, string content, CancellationToken cancellationToken)
+    private const string SystemPromptResourceKey = "SystemPrompt.md";
+
+    public async Task<MessageResponseDto?> HandleAsync(int sessionId, string? content, CancellationToken cancellationToken)
     {
         var session = await GetOrCreateSession(sessionId, cancellationToken);
         if (session == null)
@@ -17,8 +21,10 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
             return null;
         }
 
-        await AppendMessageToSession(content, session, MessageRoles.User, cancellationToken);
+        if (content != null)
+            await AppendMessageToSession(content, session, MessageRoles.User, cancellationToken);
         var sessionMessages = await GetSessionMessages(session.Id, cancellationToken);
+        await PrependSystemMessage(sessionMessages);
         var createResponseOptions = PrepareOpenAiResponseOptions(sessionMessages);
         var response = await responsesClient.CreateResponseAsync(createResponseOptions, cancellationToken);
         var responseText = response.Value.GetOutputText();
@@ -54,7 +60,7 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
         return session;
     }
 
-    private async Task AppendMessageToSession(string content, SessionModel session, string role, CancellationToken cancellationToken)
+    private Task<int> AppendMessageToSession(string content, SessionModel session, string role, CancellationToken cancellationToken)
     {
         var userMessage = new MessageModel
         {
@@ -63,12 +69,12 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
             SessionId = session.Id
         };
         context.Messages.Add(userMessage);
-        await context.SaveChangesAsync(cancellationToken);
+        return context.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<IReadOnlyCollection<ResponseItem>> GetSessionMessages(int sessionId, CancellationToken cancellationToken)
+    private Task<List<MessageResponseItem>> GetSessionMessages(int sessionId, CancellationToken cancellationToken)
     {
-        return await context.Messages
+        return context.Messages
             .AsNoTracking()
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.CreatedAt)
@@ -78,13 +84,35 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
             .ToListAsync(cancellationToken);
     }
 
-    private CreateResponseOptions PrepareOpenAiResponseOptions(IReadOnlyCollection<ResponseItem> content)
+    private async Task PrependSystemMessage(List<MessageResponseItem> messages)
+    {
+        var systemPrompt = await memoryCache.GetOrCreateAsync(SystemPromptResourceKey, async _ =>
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            var resourceName = assembly.GetManifestResourceNames().FirstOrDefault(name => name.EndsWith(SystemPromptResourceKey));
+            if (resourceName == null)
+            {
+                throw new InvalidOperationException($"{SystemPromptResourceKey} not found in embedded resources.");
+            }
+            await using var stream = assembly.GetManifestResourceStream(resourceName);
+            if (stream == null)
+            {
+                throw new InvalidOperationException($"{SystemPromptResourceKey} not found in embedded resources.");
+            }
+            using var reader = new StreamReader(stream);
+            return await reader.ReadToEndAsync();
+        });
+        var systemItem = ResponseItem.CreateSystemMessageItem(systemPrompt);
+        messages.Insert(0, systemItem);
+    }
+
+    private CreateResponseOptions PrepareOpenAiResponseOptions(IReadOnlyCollection<ResponseItem> messages)
     {
         var createResponseOptions = new CreateResponseOptions
         {
             Model = options.Value.OpenAiModel
         };
-        foreach (var item in content)
+        foreach (var item in messages)
         {
             createResponseOptions.InputItems.Add(item);
         }
