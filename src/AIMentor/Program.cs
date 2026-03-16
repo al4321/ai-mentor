@@ -23,6 +23,9 @@ builder.Services
 
 var app = builder.Build();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 foreach (var ep in app.Services.GetServices<IEndpoint>())
     ep.MapEndpoint(app);
 

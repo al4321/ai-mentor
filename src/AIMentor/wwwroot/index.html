@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Computer Networks Mentor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e0e0e0;
+        }
+
+        header {
+            width: 100%;
+            padding: 16px 24px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #e94560;
+            letter-spacing: 0.5px;
+        }
+
+        .frame {
+            width: 50%;
+            height: 90vh;
+            margin-top: calc((100vh - 90vh - 57px) / 2);
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        #output {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #c8d6e5;
+            background: #0d1b2a;
+        }
+
+        #output .message {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+        }
+
+        #output .message.assistant {
+            background: #1a2a3a;
+            border-left: 3px solid #e94560;
+        }
+
+        #output .message.user {
+            background: #0f3460;
+            border-left: 3px solid #4fc3f7;
+            text-align: right;
+        }
+
+        #output .message .label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+            opacity: 0.6;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            padding: 16px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+        }
+
+        #messageInput {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #0d1b2a;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #messageInput:focus {
+            border-color: #e94560;
+        }
+
+        #messageInput:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #sendBtn {
+            padding: 10px 22px;
+            background: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+            white-space: nowrap;
+        }
+
+        #sendBtn:hover:not(:disabled) {
+            background: #c73652;
+        }
+
+        #sendBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            padding: 6px 20px;
+            color: #888;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            min-height: 28px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AI Computer Networks Mentor</h1>
+    </header>
+
+    <div class="frame">
+        <div id="output"></div>
+        <div class="status" id="status">Initializing session...</div>
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type your question..." disabled />
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = 0;
+
+        const output = document.getElementById('output');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const status = document.getElementById('status');
+
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = role === 'assistant' ? 'Mentor' : 'You';
+            const content = document.createElement('div');
+            content.textContent = text;
+            div.appendChild(label);
+            div.appendChild(content);
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function sendMessage(content) {
+            const response = await fetch(`/sessions/${sessionId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: content ? JSON.stringify({ content }) : 'null'
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err || `HTTP ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        async function init() {
+            try {
+                const data = await sendMessage(null);
+                sessionId = data.sessionId;
+                appendMessage('assistant', data.content);
+                status.textContent = `Session started (id: ${sessionId})`;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            } catch (e) {
+                status.textContent = `Failed to start session: ${e.message}`;
+            }
+        }
+
+        async function handleSend() {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            status.textContent = 'Waiting for response...';
+            appendMessage('user', text);
+            messageInput.value = '';
+
+            try {
+                const data = await sendMessage(text);
+                appendMessage('assistant', data.content);
+                status.textContent = `Session id: ${sessionId}`;
+            } catch (e) {
+                status.textContent = `Error: ${e.message}`;
+            } finally {
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        messageInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') handleSend();
+        });
+
+        init();
+    </script>
+</body>
+</html>
