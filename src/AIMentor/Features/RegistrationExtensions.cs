@@ -1,4 +1,5 @@
 ﻿using System.ClientModel;
+using AIMentor.Features.GetSessions;
 using AIMentor.Features.SendMessage;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -11,6 +12,7 @@ public static class RegistrationExtensions
     public static IHostApplicationBuilder AddFeatures(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<SendMessageHandler>();
+        builder.Services.AddScoped<GetSessionsHandler>();
         builder.Services
             .AddOptions<OpenAiOptions>()
             .Bind(builder.Configuration.GetSection(OpenAiOptions.SectionPath))
