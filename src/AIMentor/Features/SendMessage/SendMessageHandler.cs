@@ -45,7 +45,7 @@ public class SendMessageHandler(ResponsesClient responsesClient, AiMentorDbConte
         {
             session = new SessionModel
             {
-                Name = $"Chat {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}"
+                Name = "Chat"
             };
             context.Sessions.Add(session);
             await context.SaveChangesAsync(cancellationToken);
