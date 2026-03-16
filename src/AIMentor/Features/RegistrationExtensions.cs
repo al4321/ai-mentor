@@ -1,4 +1,5 @@
 ﻿using System.ClientModel;
+using AIMentor.Features.DeleteSession;
 using AIMentor.Features.GetMessages;
 using AIMentor.Features.GetSessions;
 using AIMentor.Features.SendMessage;
@@ -15,6 +16,7 @@ public static class RegistrationExtensions
         builder.Services.AddScoped<SendMessageHandler>();
         builder.Services.AddScoped<GetSessionsHandler>();
         builder.Services.AddScoped<GetMessagesHandler>();
+        builder.Services.AddScoped<DeleteSessionHandler>();
         builder.Services
             .AddOptions<OpenAiOptions>()
             .Bind(builder.Configuration.GetSection(OpenAiOptions.SectionPath))

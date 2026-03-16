@@ -89,6 +89,32 @@
             font-size: 0.85rem;
             color: #c8d6e5;
             transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .session-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .session-delete-btn {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: #555;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 2px 4px;
+            border-radius: 4px;
+            line-height: 1;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .session-delete-btn:hover {
+            color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
         }
 
         .session-item:hover {
@@ -312,23 +338,56 @@
                 item.className = 'session-item' + (s.id === sessionId ? ' active' : '');
                 item.dataset.id = s.id;
 
+                const info = document.createElement('div');
+                info.className = 'session-item-info';
+
                 const name = document.createElement('div');
                 name.className = 'session-name';
                 name.textContent = s.name;
 
-                const id = document.createElement('div');
-                id.className = 'session-id';
-                id.textContent = `#${s.id}`;
+                const sid = document.createElement('div');
+                sid.className = 'session-id';
+                sid.textContent = `#${s.id}`;
 
                 const date = document.createElement('div');
                 date.className = 'session-date';
                 date.textContent = new Date(s.createdAt).toLocaleString();
 
-                item.appendChild(name);
-                item.appendChild(id);
-                item.appendChild(date);
+                info.appendChild(name);
+                info.appendChild(sid);
+                info.appendChild(date);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'session-delete-btn';
+                deleteBtn.textContent = '✕';
+                deleteBtn.title = 'Delete session';
+                deleteBtn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    deleteSession(s.id);
+                });
+
+                item.appendChild(info);
+                item.appendChild(deleteBtn);
                 item.addEventListener('click', () => selectSession(s.id));
                 sessionList.appendChild(item);
+            }
+        }
+
+        async function deleteSession(id) {
+            if (isLoading) return;
+            try {
+                const response = await fetch(`/sessions/${id}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (id === sessionId) {
+                    sessionId = 0;
+                    output.innerHTML = '';
+                    status.textContent = 'Session deleted. Start a new one by refreshing the page.';
+                    messageInput.disabled = true;
+                    sendBtn.disabled = true;
+                }
+                await loadSessions();
+            } catch (e) {
+                status.textContent = `Failed to delete session: ${e.message}`;
             }
         }
 
