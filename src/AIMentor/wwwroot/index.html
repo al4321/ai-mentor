@@ -12,13 +12,13 @@
         }
 
         body {
-            min-height: 100vh;
+            height: 100vh;
             background: #1a1a2e;
             display: flex;
             flex-direction: column;
-            align-items: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #e0e0e0;
+            overflow: hidden;
         }
 
         header {
@@ -27,6 +27,7 @@
             background: #16213e;
             border-bottom: 1px solid #0f3460;
             text-align: center;
+            flex-shrink: 0;
         }
 
         header h1 {
@@ -36,10 +37,92 @@
             letter-spacing: 0.5px;
         }
 
+        .layout {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            overflow: hidden;
+        }
+
+        /* Sessions sidebar */
+        .sessions-panel {
+            width: 20%;
+            height: 90%;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            flex-shrink: 0;
+        }
+
+        .sessions-panel .panel-title {
+            padding: 14px 16px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #888;
+            border-bottom: 1px solid #0f3460;
+            flex-shrink: 0;
+        }
+
+        #sessionList {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #sessionList.loading {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .session-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #0f3460;
+            font-size: 0.85rem;
+            color: #c8d6e5;
+            transition: background 0.15s;
+        }
+
+        .session-item:hover {
+            background: #0f3460;
+        }
+
+        .session-item.active {
+            background: #0f3460;
+            border-left: 3px solid #e94560;
+        }
+
+        .session-item .session-name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .session-item .session-id {
+            font-size: 0.72rem;
+            color: #e94560;
+            margin-top: 3px;
+        }
+
+        .session-item .session-date {
+            font-size: 0.72rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Chat frame */
         .frame {
             width: 50%;
-            height: 90vh;
-            margin-top: calc((100vh - 90vh - 57px) / 2);
+            height: 90%;
             background: #16213e;
             border: 1px solid #0f3460;
             border-radius: 12px;
@@ -53,7 +136,6 @@
             flex: 1;
             padding: 20px;
             overflow-y: auto;
-            white-space: pre-wrap;
             font-size: 0.95rem;
             line-height: 1.6;
             color: #c8d6e5;
@@ -86,12 +168,27 @@
             opacity: 0.6;
         }
 
+        #output .message .content {
+            white-space: pre-wrap;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            padding: 6px 20px;
+            color: #888;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            min-height: 28px;
+            flex-shrink: 0;
+        }
+
         .input-area {
             display: flex;
             gap: 10px;
             padding: 16px;
             background: #16213e;
             border-top: 1px solid #0f3460;
+            flex-shrink: 0;
         }
 
         #messageInput {
@@ -136,15 +233,6 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
-
-        .status {
-            font-size: 0.8rem;
-            padding: 6px 20px;
-            color: #888;
-            background: #16213e;
-            border-top: 1px solid #0f3460;
-            min-height: 28px;
-        }
     </style>
 </head>
 <body>
@@ -152,22 +240,31 @@
         <h1>AI Computer Networks Mentor</h1>
     </header>
 
-    <div class="frame">
-        <div id="output"></div>
-        <div class="status" id="status">Initializing session...</div>
-        <div class="input-area">
-            <input type="text" id="messageInput" placeholder="Type your question..." disabled />
-            <button id="sendBtn" disabled>Send</button>
+    <div class="layout">
+        <div class="sessions-panel">
+            <div class="panel-title">Sessions</div>
+            <div id="sessionList"></div>
+        </div>
+
+        <div class="frame">
+            <div id="output"></div>
+            <div class="status" id="status">Initializing session...</div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Type your question..." disabled />
+                <button id="sendBtn" disabled>Send</button>
+            </div>
         </div>
     </div>
 
     <script>
         let sessionId = 0;
+        let isLoading = false;
 
         const output = document.getElementById('output');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const status = document.getElementById('status');
+        const sessionList = document.getElementById('sessionList');
 
         function appendMessage(role, text) {
             const div = document.createElement('div');
@@ -176,6 +273,7 @@
             label.className = 'label';
             label.textContent = role === 'assistant' ? 'Mentor' : 'You';
             const content = document.createElement('div');
+            content.className = 'content';
             content.textContent = text;
             div.appendChild(label);
             div.appendChild(content);
@@ -183,32 +281,111 @@
             output.scrollTop = output.scrollHeight;
         }
 
-        async function sendMessage(content) {
-            const response = await fetch(`/sessions/${sessionId}/messages`, {
+        async function postMessage(id, content) {
+            const response = await fetch(`/sessions/${id}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: content ? JSON.stringify({ content }) : 'null'
             });
-
             if (!response.ok) {
                 const err = await response.text();
                 throw new Error(err || `HTTP ${response.status}`);
             }
-
             return response.json();
         }
 
-        async function init() {
+        async function loadSessions() {
             try {
-                const data = await sendMessage(null);
+                const response = await fetch('/sessions');
+                if (!response.ok) return;
+                const sessions = await response.json();
+                renderSessions(sessions);
+            } catch {
+                // non-critical, sidebar stays empty
+            }
+        }
+
+        function renderSessions(sessions) {
+            sessionList.innerHTML = '';
+            for (const s of sessions) {
+                const item = document.createElement('div');
+                item.className = 'session-item' + (s.id === sessionId ? ' active' : '');
+                item.dataset.id = s.id;
+
+                const name = document.createElement('div');
+                name.className = 'session-name';
+                name.textContent = s.name;
+
+                const id = document.createElement('div');
+                id.className = 'session-id';
+                id.textContent = `#${s.id}`;
+
+                const date = document.createElement('div');
+                date.className = 'session-date';
+                date.textContent = new Date(s.createdAt).toLocaleString();
+
+                item.appendChild(name);
+                item.appendChild(id);
+                item.appendChild(date);
+                item.addEventListener('click', () => selectSession(s.id));
+                sessionList.appendChild(item);
+            }
+        }
+
+        function setActiveSession(id) {
+            sessionId = id;
+            sessionList.querySelectorAll('.session-item').forEach(el => {
+                el.classList.toggle('active', Number(el.dataset.id) === id);
+            });
+        }
+
+        function setSessionsLoading(value) {
+            isLoading = value;
+            sessionList.classList.toggle('loading', value);
+        }
+
+        async function selectSession(id) {
+            if (id === sessionId || isLoading) return;
+            setActiveSession(id);
+            output.innerHTML = '';
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+            setSessionsLoading(true);
+            status.textContent = 'Loading session...';
+            try {
+                const response = await fetch(`/sessions/${id}/messages`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const messages = await response.json();
+                for (const m of messages) {
+                    appendMessage(m.role === 'user' ? 'user' : 'assistant', m.content);
+                }
+                status.textContent = `Session id: ${sessionId}`;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.focus();
+            } catch (e) {
+                status.textContent = `Error: ${e.message}`;
+            } finally {
+                setSessionsLoading(false);
+            }
+        }
+
+        async function init() {
+            await loadSessions();
+            setSessionsLoading(true);
+            try {
+                const data = await postMessage(0, null);
                 sessionId = data.sessionId;
                 appendMessage('assistant', data.content);
                 status.textContent = `Session started (id: ${sessionId})`;
                 messageInput.disabled = false;
                 sendBtn.disabled = false;
                 messageInput.focus();
+                await loadSessions();
             } catch (e) {
                 status.textContent = `Failed to start session: ${e.message}`;
+            } finally {
+                setSessionsLoading(false);
             }
         }
 
@@ -223,7 +400,7 @@
             messageInput.value = '';
 
             try {
-                const data = await sendMessage(text);
+                const data = await postMessage(sessionId, text);
                 appendMessage('assistant', data.content);
                 status.textContent = `Session id: ${sessionId}`;
             } catch (e) {
